@@ -5,5 +5,5 @@
 	path = lib/xptools
 	url = https://github.com/ngscopeclient/xptools.git
 [submodule "lib/logtools"]
-	path = lib/logtools
+	path = lib/log
 	url = https://github.com/ngscopeclient/logtools.git
