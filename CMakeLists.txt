@@ -45,7 +45,7 @@ if(ANALYZE)
 	endif()
 endif()
 
-add_subdirectory("${PROJECT_SOURCE_DIR}/lib/log")t
+add_subdirectory("${PROJECT_SOURCE_DIR}/lib/log")
 add_subdirectory("${PROJECT_SOURCE_DIR}/lib/scpi-server-tools")
 add_subdirectory("${PROJECT_SOURCE_DIR}/lib/xptools")
 add_subdirectory("${PROJECT_SOURCE_DIR}/src/vds1022")
