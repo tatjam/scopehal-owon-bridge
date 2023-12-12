@@ -1,0 +1,9 @@
+[submodule "lib/scpi-server-tools"]
+	path = lib/scpi-server-tools
+	url = https://github.com/ngscopeclient/scpi-server-tools.git
+[submodule "lib/xptools"]
+	path = lib/xptools
+	url = https://github.com/ngscopeclient/xptools.git
+[submodule "lib/logtools"]
+	path = lib/logtools
+	url = https://github.com/ngscopeclient/logtools.git
