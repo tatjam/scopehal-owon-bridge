@@ -7,10 +7,7 @@ if(WIN32)
 else()
 endif()
 
-#Set up include paths
-if(WIN32)
-else()
-endif()
+
 
 ###############################################################################
 #C++ compilation
@@ -18,6 +15,7 @@ add_executable(vds1022
         OWONSCPIServer.cpp
         main.cpp
 )
+
 
 ###############################################################################
 #Linker settings
@@ -27,6 +25,7 @@ if(WIN32)
             xptools
             log
             scpi-server-tools
+            ${libusb_LIBRARIES}
     )
 else()
     # Linux specific linker
@@ -34,5 +33,7 @@ else()
             xptools
             log
             scpi-server-tools
+            usb-1.0
+            ${libusb_LIBRARIES}
     )
 endif()

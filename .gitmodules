@@ -7,3 +7,6 @@
 [submodule "lib/logtools"]
 	path = lib/log
 	url = https://github.com/ngscopeclient/logtools.git
+[submodule "lib/libusb-cmake"]
+	path = lib/libusb-cmake
+	url = https://github.com/libusb/libusb-cmake
