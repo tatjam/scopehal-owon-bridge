@@ -14,7 +14,6 @@ endif()
 add_executable(owon_firmware_extractor
         main.cpp
         NSIS.cpp
-        NSIS.h
 )
 
 
@@ -24,10 +23,12 @@ if(WIN32)
     # Windows specific linker
     target_link_libraries(owon_firmware_extractor
             log
+            bxzstr
     )
 else()
     # Linux specific linker
     target_link_libraries(owon_firmware_extractor
             log
+            bxzstr
     )
 endif()

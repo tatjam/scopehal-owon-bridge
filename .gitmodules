@@ -10,3 +10,6 @@
 [submodule "lib/libusb-cmake"]
 	path = lib/libusb-cmake
 	url = https://github.com/libusb/libusb-cmake
+[submodule "lib/bxzstr"]
+	path = lib/bxzstr
+	url = https://github.com/tmaklin/bxzstr

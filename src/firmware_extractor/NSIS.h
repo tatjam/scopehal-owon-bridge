@@ -9,6 +9,8 @@ class NSIS
 {
 public:
 
+
+	// Fully parses the stream
 	NSIS(istream in);
 };
 
