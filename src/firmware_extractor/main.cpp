@@ -3,6 +3,8 @@
 #include <iostream>
 #include <fstream>
 
+#include "NSIS.h"
+
 using namespace std;
 
 
@@ -72,7 +74,13 @@ int main(int argc, char* argv[])
 
 	g_log_sinks.emplace(g_log_sinks.begin(), new STDLogSink(console_verbosity));
 
-	ifstream stream(file.c_str());
+	ifstream stream(file.c_str(), ios::binary | ios::in);
+	if(!stream.good())
+	{
+		LogError("Unable to open file!");
+		return 1;
+	}
+	NSIS nsis(std::move(stream));
 
 	// The extraction is pretty simple as the files are packaged
 
