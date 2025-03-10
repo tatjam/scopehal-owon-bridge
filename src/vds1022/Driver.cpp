@@ -72,7 +72,7 @@ bool Driver::init(libusb_device_handle* _hnd, uint8_t _write_ep, uint8_t _read_e
 	{
 		// TODO: Flash the device (kind of wonky licensing, so maybe not a good idea!)
 		LogError("Device is not flashed. Launch official software to do so!\n");
-		LogError("Once software has been launched once, the device will remain\\
+		LogError("Once software has been launched once, the device will remain\
 flashed until it's disconnected from the computer. (Software can be closed)\n");
 		LogError("If you are running linux, you can use: https://github.com/florentbr/OWON-VDS1022/tree/master\n");
 		return false;
