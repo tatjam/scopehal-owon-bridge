@@ -1,4 +1,5 @@
 #pragma once
+#include <string>
 #include <array>
 #include <libusb.h>
 
@@ -22,13 +23,15 @@ struct Calibration
 
 class Driver
 {
-private:
+protected:
 
 	bool old_board;
 
 	libusb_device_handle* hnd;
 	uint8_t write_ep;
 	uint8_t read_ep;
+
+	std::string dev_version;
 
 	Calibration calibration[2];
 
@@ -41,9 +44,12 @@ private:
 	template<typename T>
 	void send_command_raw(uint32_t addr, T data);
 
+	CommandResponse receive_response() const;
+
 	// Obtains current oscilloscope calibration, and returns
 	// if everything is safe to use
 	bool read_flash();
+	bool write_firmware_to_fpga();
 
 public:
 

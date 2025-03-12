@@ -1,6 +1,12 @@
 #include "Driver.h"
+
+#include <cmath>
+
 #include "../../lib/log/log.h"
 #include <string>
+#include <cstring>
+#include <istream>
+#include <fstream>
 
 // Little-endian! LSB at littlest address
 
@@ -29,6 +35,11 @@ CommandResponse Driver::send_command(uint32_t addr, T data)
 {
 	send_command_raw<T>(addr, data);
 	// Now listen for response
+	return receive_response();
+}
+
+CommandResponse Driver::receive_response() const
+{
 	std::array<uint8_t, 5> read_bytes{};
 	libusb_bulk_transfer(hnd, read_ep, read_bytes.data(), read_bytes.size(), nullptr, 0);
 
@@ -40,8 +51,8 @@ CommandResponse Driver::send_command(uint32_t addr, T data)
 	out.value |= read_bytes[4] << (8 * 3);
 
 	return out;
-}
 
+}
 
 
 bool Driver::init(libusb_device_handle* _hnd, uint8_t _write_ep, uint8_t _read_ep)
@@ -65,25 +76,20 @@ bool Driver::init(libusb_device_handle* _hnd, uint8_t _write_ep, uint8_t _read_e
 		return false;
 	}
 
-	// Check FPGA, we don't flash it! The user must atleast launch
-	// the official software once
+	// Query FPGA command,
 	rsp = send_command<uint8_t>(0X0223, 0);
 	if(rsp.value == 0)
 	{
-		// TODO: Flash the device (kind of wonky licensing, so maybe not a good idea!)
-		LogError("Device is not flashed. Launch official software to do so!\n");
-		LogError("Once software has been launched once, the device will remain\
-flashed until it's disconnected from the computer. (Software can be closed)\n");
-		LogError("If you are running linux, you can use: https://github.com/florentbr/OWON-VDS1022/tree/master\n");
-		return false;
+		write_firmware_to_fpga();
 	}
 
 	return true;
 }
 
+
 bool Driver::read_flash()
 {
-	// Read flash command expects 1 byte argument
+	// Read flash command expects 1 byte argument, which is always 1
 	send_command_raw<uint8_t>(0x01b0, 1);
 	std::array<uint8_t, 2002> flash{};
 	libusb_bulk_transfer(hnd, read_ep, flash.data(), flash.size(), nullptr, 0);
@@ -133,19 +139,16 @@ bool Driver::read_flash()
 	uint8_t* ptr = &flash[207];
 	do
 	{
-		ver.push_back(*ptr);
+		auto as_byte = static_cast<uint8_t>(*ptr);
+		ver.push_back(as_byte);
 	}
 	while(*(ptr++) != 0);
 
 
 	if(ver.size() > 3)
 	{
-		int vern = ((int)ver[1] - 48);
-		if(vern > 2 && vern <= 9)
-		{
-			old_board = false;
-		}
-		else if(ver.rfind("V2.7.0"))
+		const int vern = (static_cast<int>(ver[1]) - 48);
+		if(vern > 2 && vern <= 9 || ver.rfind("V2.7.0"))
 		{
 			old_board = false;
 		}
@@ -160,6 +163,60 @@ bool Driver::read_flash()
 		return false;
 	}
 
+	return true;
+}
+
+bool Driver::write_firmware_to_fpga()
+{
+	std::string filename = "fpga/VDS1022_FPGAV";
+	// Append version
+	filename += dev_version;
+	filename += ".bin";
+
+	std::ifstream file(filename, std::ios::binary | std::ios::in);
+	if(!file.good())
+	{
+		return false;
+	}
+
+	std::vector<uint8_t> contents((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+
+	// This returns how big should we send each chunk to the FPGA, including a 32-bit header.
+	// (Thus we send frameSize - 1 byte chunks of the firmware)
+	auto frameSize = send_command<uint32_t>(0x4000, static_cast<uint32_t>(contents.size()));
+	if(frameSize.value == 0)
+	{
+		return false;
+	}
+
+	uint32_t payloadSize = frameSize.value - 4;
+	auto frameCount = static_cast<uint32_t>(
+		std::ceil(static_cast<double>(contents.size()) / static_cast<double>(payloadSize)));
+
+	std::vector<uint8_t> buffer;
+	buffer.resize(frameSize.value);
+
+	for(uint32_t i = 0; i < frameCount; i++)
+	{
+		uint32_t b = i * payloadSize;
+		std::memcpy(buffer.data(), &i, 4);
+		for(uint32_t j = 0; j < payloadSize; j++)
+		{
+			buffer[j + 4] = contents[b + j];
+		}
+		// We first write i (as the header) and then the payloadSize bytes
+		libusb_bulk_transfer(hnd, write_ep, buffer.data(), static_cast<int>(frameSize.value), nullptr, 0);
+
+		CommandResponse resp = receive_response();
+		if(resp.status != 'S')
+		{
+			return false;
+		}
+		if(resp.value != i)
+		{
+			return false;
+		}
+	}
 
 	return true;
 }
