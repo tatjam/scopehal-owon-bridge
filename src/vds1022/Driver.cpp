@@ -80,7 +80,9 @@ bool Driver::init(libusb_device_handle* _hnd, uint8_t _write_ep, uint8_t _read_e
 	rsp = send_command<uint8_t>(0X0223, 0);
 	if(rsp.value == 0)
 	{
-		write_firmware_to_fpga();
+		LogError("FPGA FLASHING NOT TESTED YET, FLASH FIRMWARE WITH OFFICIAL SOFTWARE!");
+		return false;
+		//write_firmware_to_fpga();
 	}
 
 	return true;
