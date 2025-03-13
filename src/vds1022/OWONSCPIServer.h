@@ -1,14 +1,22 @@
 #pragma once
 
+#include "Driver.h"
 #include "../../lib/scpi-server-tools/BridgeSCPIServer.h"
 
 class OWONSCPIServer : public BridgeSCPIServer
 {
 public:
-	OWONSCPIServer(ZSOCKET sock);
+	ZSOCKET scpi_socket;
+	Socket waveform_socket;
+
+	OWONSCPIServer(ZSOCKET sock, Socket&& wsock, Driver* driver);
 	virtual ~OWONSCPIServer();
 
 protected:
+
+	Driver* driver;
+
+
 	std::string GetMake() override;
 	std::string GetModel() override;
 	std::string GetSerial() override;
@@ -35,4 +43,10 @@ protected:
 	void SetEdgeTriggerEdge(const std::string& edge) override;
 	bool GetChannelID(const std::string& subject, size_t& id_out) override;
 	ChannelType GetChannelType(size_t channel) override;
+
+	bool OnCommand(const std::string& line, const std::string& subject, const std::string& cmd,
+		const std::vector<std::string>& args) override;
+	bool OnQuery(const std::string& line, const std::string& subject, const std::string& cmd) override;
+
+	void WorkerThreadFunc(OWONSCPIServer* server);
 };

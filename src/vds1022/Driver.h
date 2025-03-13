@@ -53,7 +53,9 @@ protected:
 
 public:
 
+	bool init_findany();
 	bool init(libusb_device_handle* _hnd, uint8_t _write_ep, uint8_t _read_ep);
 
+	void deinit();
 };
 

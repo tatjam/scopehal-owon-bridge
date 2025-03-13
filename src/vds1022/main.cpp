@@ -3,6 +3,7 @@
 #include <string>
 
 #include "Driver.h"
+#include "OWONSCPIServer.h"
 
 using namespace std;
 
@@ -11,10 +12,14 @@ using namespace std;
 void help()
 {
 	fprintf(stderr,
-			"vds1022 [general options] [logger options]\n"
+			"vds1022 [general options] [bridge options] [logger options]\n"
 			"\n"
 			"  [general options]:\n"
 			"    --help                        : this message...\n"
+			"\n"
+			"  [bridge options]:\n"
+			"    --scpi-port                   : set port for scpi, default 5025...\n"
+			"    --waveform-port               : set port for waveforms, default 5026...\n"
 			"\n"
 			"  [logger options]:\n"
 			"    levels: ERROR, WARNING, NOTICE, VERBOSE, DEBUG\n"
@@ -31,6 +36,9 @@ void help()
 
 int main(int argc, char* argv[])
 {
+	uint16_t scpiPort = 5025;
+	uint16_t waveformPort = 5026;
+
 	Severity console_verbosity = Severity::NOTICE;
 	for(int i = 1; i < argc; i++)
 	{
@@ -52,8 +60,6 @@ int main(int argc, char* argv[])
 
 	g_log_sinks.emplace(g_log_sinks.begin(), new STDLogSink(console_verbosity));
 
-	LogNotice("Enumerating USB devices to find scope\n");
-
 	int r = libusb_init_context(nullptr, nullptr, 0);
 	if(r < 0)
 	{
@@ -61,124 +67,53 @@ int main(int argc, char* argv[])
 		return r;
 	}
 
-	// Enumerate devices to find the oscilloscope
-	libusb_device** devices;
-	ssize_t dev_count = libusb_get_device_list(nullptr, &devices);
-	if(dev_count < 0)
+	Driver driver;
+	if(!driver.init_findany())
 	{
-		LogError("Unable to enumerate devices\n");
-		libusb_exit(nullptr);
-		return (int)dev_count;
+		LogError("Unable to initialize driver\n");
+		return -1;
 	}
 
-	libusb_device* dev;
-	libusb_device_handle* devh = nullptr;
-	int i = 0;
+	Socket scpiSocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
+	Socket waveformSocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 
-	uint8_t write_ep = 255;
-	uint8_t read_ep = 255;
 
-	while((dev = devices[i++]) != nullptr)
+	scpiSocket.SetReuseaddr(true);
+	scpiSocket.Bind(scpiPort);
+	scpiSocket.Listen();
+
+	waveformSocket.SetReuseaddr(true);
+	waveformSocket.Bind(waveformPort);
+	waveformSocket.Listen();
+
+
+	while(true)
 	{
-		struct libusb_device_descriptor desc;
-		r = libusb_get_device_descriptor(dev, &desc);
-		if(r < 0) continue;
+		LogNotice("Waiting for ngscope to connect\n");
 
-		if(desc.idVendor == 0x5345 && desc.idProduct == 0x1234)
+		Socket scpiClient = scpiSocket.Accept();
+		if(!scpiClient.IsValid()) break;
+
+		Socket dataClient = waveformSocket.Accept();
+		if(!dataClient.IsValid()) break;
+
+		if(!dataClient.DisableNagle())
 		{
-			LogNotice("Found scope, trying to claim\n");
-			r = libusb_open(dev, &devh);
-			if(r < 0)
-			{
-				LogError("Unable to open usb device\n");
-				break;
-			}
-
-			// Get endpoints, one for writing, one for reading
-			struct libusb_config_descriptor* config;
-			libusb_get_config_descriptor(dev, 0, &config);
-			if(config->bNumInterfaces < 1)
-			{
-				LogError("No USB interfaces found on device");
-				libusb_free_config_descriptor(config);
-				break;
-			}
-
-			if(config->interface[0].num_altsetting < 1)
-			{
-				LogError("No USB alt setting found on device");
-				libusb_free_config_descriptor(config);
-				break;
-			}
-
-			const struct libusb_interface_descriptor* iface =
-					&config->interface[0].altsetting[0];
-
-			for(size_t i = 0; i < iface->bNumEndpoints; i++)
-			{
-				uint8_t addr = iface->endpoint[i].bEndpointAddress;
-				if((addr & 0x80) == 0 && write_ep == 255)
-				{
-					// write endpoint
-					write_ep = addr;
-				}
-				if((addr & 0x80) != 0 && read_ep == 255)
-				{
-					read_ep = addr;
-				}
-			}
-
-			if(write_ep == 255 || read_ep == 255)
-			{
-				LogError("Unable to find R/W endpoints");
-				libusb_free_config_descriptor(config);
-				break;
-			}
-
-			libusb_free_config_descriptor(config);
-
-			r = libusb_claim_interface(devh, 0);
-			if(r < 0)
-			{
-				LogError("Unable to clain usb interface\n");
-				libusb_close(devh);
-				devh = nullptr;
-				break;
-			}
-
-
-			// We can now interact with the device at will
-			LogNotice("Connection with device initialized\n");
+			LogWarning("Failed to disable Nagle, performance may be worse.");
 		}
 
+		LogNotice("Connected, starting operation!\n");
+
+		OWONSCPIServer server(scpiClient.Detach(), std::move(dataClient), &driver);
+
+		// Launch the waveform obtainer thread
+
+		server.MainLoop();
 	}
 
-	libusb_free_device_list(devices, 1);
-
-	if(!devh)
-	{
-		LogError("Unable to find or claim OWON scope\n");
-		libusb_exit(nullptr);
-		return -1;
-	}
-
-	// Start operation
-	Driver driver;
-	if(!driver.init(devh, write_ep, read_ep))
-	{
-		LogError("Failed initialization, cleaning up\n");
-		libusb_release_interface(devh, 0);
-		libusb_close(devh);
-		libusb_exit(nullptr);
-		return -1;
-	}
-
-
-
-	LogNotice("Cleaning up\n");
-	libusb_release_interface(devh, 0);
-	libusb_close(devh);
+	driver.deinit();
 	libusb_exit(nullptr);
+
 	return 0;
 
 }
