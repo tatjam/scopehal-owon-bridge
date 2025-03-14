@@ -1,3 +1,5 @@
+The reverse-engineering of the original software was obtained from: https://github.com/florentbr/OWON-VDS1022 
+
 # Dependencies
 
 `sudo apt install libudev-dev libhidapi-dev`

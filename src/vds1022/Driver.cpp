@@ -1,5 +1,6 @@
 #include "Driver.h"
 
+#include <algorithm>
 #include <cmath>
 
 #include "../../lib/log/log.h"
@@ -7,6 +8,8 @@
 #include <cstring>
 #include <istream>
 #include <fstream>
+
+#include "VDS1022Cmd.h"
 
 // Little-endian! LSB at littlest address
 
@@ -62,7 +65,7 @@ bool Driver::init(libusb_device_handle* _hnd, uint8_t _write_ep, uint8_t _read_e
 	this->read_ep = _read_ep;
 
 	// Check correct device version to avoid possible damage
-	auto rsp = send_command<uint8_t>(0x4001, 86);
+	auto rsp = send_command<uint8_t>(CMD_GET_MACHINE, 86);
 	if(rsp.value != 1)
 	{
 		LogError("Incorrect device version\n");
@@ -77,13 +80,15 @@ bool Driver::init(libusb_device_handle* _hnd, uint8_t _write_ep, uint8_t _read_e
 	}
 
 	// Query FPGA command,
-	rsp = send_command<uint8_t>(0X0223, 0);
+	rsp = send_command<uint8_t>(CMD_QUERY_FPGA, 0);
 	if(rsp.value == 0)
 	{
 		LogError("FPGA FLASHING NOT TESTED YET, FLASH FIRMWARE WITH OFFICIAL SOFTWARE!");
 		return false;
 		//write_firmware_to_fpga();
 	}
+
+	load_default_settings();
 
 	return true;
 }
@@ -99,7 +104,7 @@ void Driver::deinit()
 bool Driver::read_flash()
 {
 	// Read flash command expects 1 byte argument, which is always 1
-	send_command_raw<uint8_t>(0x01b0, 1);
+	send_command_raw<uint8_t>(CMD_READ_FLASH, 1);
 	std::array<uint8_t, 2002> flash{};
 	libusb_bulk_transfer(hnd, read_ep, flash.data(), flash.size(), nullptr, 0);
 
@@ -192,7 +197,7 @@ bool Driver::write_firmware_to_fpga()
 
 	// This returns how big should we send each chunk to the FPGA, including a 32-bit header.
 	// (Thus we send frameSize - 1 byte chunks of the firmware)
-	auto frameSize = send_command<uint32_t>(0x4000, static_cast<uint32_t>(contents.size()));
+	auto frameSize = send_command<uint32_t>(CMD_LOAD_FPGA, static_cast<uint32_t>(contents.size()));
 	if(frameSize.value == 0)
 	{
 		return false;
@@ -228,6 +233,87 @@ bool Driver::write_firmware_to_fpga()
 	}
 
 	return true;
+}
+
+void Driver::push_sampling_config(int32_t rate, bool peak_detect)
+{
+	// Send sample rate (This is always a whole number under our program)
+	int32_t timebase = 100000000 / rate;
+	send_command<int32_t>(CMD_SET_TIMEBASE, timebase);
+	// TODO: Disable roll-mode, not supported for now (we don't use very low sample rates)
+	send_command<uint8_t>(CMD_SET_ROLLMODE, 0);
+	// Set peak detect as desired
+	send_command<uint8_t>(CMD_SET_PEAKMODE, peak_detect ? 1 : 0);
+}
+
+void Driver::push_trigger_config(TriggerConfig config)
+{
+	send_command<uint16_t>(CMD_SET_MULTI, config.kind == TriggerConfig::EXT ? 2 : 0);
+
+	// Send trigger pos in samples
+
+}
+
+
+void Driver::get_data()
+{
+	// Channel 1 on, channel 2 off
+	uint8_t channel_conf = 1;
+	CommandResponse resp = send_command(CMD_SET_CHANNEL_CH1, channel_conf);
+
+
+	uint16_t channel_set = 0x54;
+	send_command_raw<uint16_t>(CMD_GET_DATA, channel_set);
+
+	std::array<uint8_t, 5211 * 2> read_bytes{};
+	int read_bytes_num;
+	libusb_bulk_transfer(hnd, read_ep, read_bytes.data(), read_bytes.size(), &read_bytes_num, 0);
+
+	if(read_bytes_num == 5)
+	{
+		// Not ready
+		return;
+	}
+
+	if(read_bytes_num != 5211 && read_bytes_num != 5211 * 2)
+	{
+		// Something's wrong
+		return;
+	}
+
+	decode_data(read_bytes.data());
+	if(read_bytes_num == 5211 * 2)
+	{
+		decode_data(read_bytes.data() + 5211);
+	}
+
+}
+
+void Driver::decode_data(uint8_t* raw)
+{
+	// First byte is channel num
+	// 4-byte uint represents time sum
+	// 4-byte uint represents period number
+	// 2-byte uint represents cursor, starting from right
+	// 100 bytes of trigger buffer
+	// 5100 bytes of ADC data
+}
+
+void Driver::load_default_settings()
+{
+	// Turn off both channels
+	// TODO: "phase_fine"
+	// Deepmemory maximum
+	// Pre-trigger maximum
+	// Post-trigger minimum
+	// MULTI output to trigger out
+	// Trigger to edge rise
+	// 100ns trigger holdoff
+	// trigger disabled
+	// TODO: frequency meter
+	// Max sample rate, peak mode disabled
+	push_sampling_config(100000000, false);
+
 }
 
 bool Driver::init_findany()

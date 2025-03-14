@@ -74,6 +74,8 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
+	driver.get_data();
+
 	Socket scpiSocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 	Socket waveformSocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 

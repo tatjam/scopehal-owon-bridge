@@ -15,6 +15,7 @@ add_executable(vds1022
         OWONSCPIServer.cpp
         main.cpp
         Driver.cpp
+        VDS1022Cmd.h
 )
 
 
