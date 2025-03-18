@@ -257,12 +257,18 @@ void Driver::push_trigger_config(TriggerConfig config)
 
 void Driver::get_data()
 {
-	// Channel 1 on, channel 2 off
-	uint8_t channel_conf = 1;
-	CommandResponse resp = send_command(CMD_SET_CHANNEL_CH1, channel_conf);
-
-
-	uint16_t channel_set = 0x54;
+	/*CommandResponse data_finished = send_command<uint8_t>(CMD_GET_DATAFINISHED, 0);
+	if(data_finished.value != 0)
+	{
+		return;
+	}
+	CommandResponse data_gettrg = send_command<uint8_t>(
+		CMD_GET_TRIGGERED, 0);
+	if(data_gettrg.value != 0)
+	{
+		return;
+	}*/
+	uint16_t channel_set = 0x0505;
 	send_command_raw<uint16_t>(CMD_GET_DATA, channel_set);
 
 	std::array<uint8_t, 5211 * 2> read_bytes{};
@@ -275,11 +281,13 @@ void Driver::get_data()
 		return;
 	}
 
-	if(read_bytes_num != 5211 && read_bytes_num != 5211 * 2)
+	if(read_bytes_num < 5211)
 	{
 		// Something's wrong
 		return;
 	}
+
+	printf("Decoded\n");
 
 	decode_data(read_bytes.data());
 	if(read_bytes_num == 5211 * 2)
@@ -301,18 +309,35 @@ void Driver::decode_data(uint8_t* raw)
 
 void Driver::load_default_settings()
 {
-	// Turn off both channels
-	// TODO: "phase_fine"
-	// Deepmemory maximum
-	// Pre-trigger maximum
-	// Post-trigger minimum
-	// MULTI output to trigger out
-	// Trigger to edge rise
-	// 100ns trigger holdoff
-	// trigger disabled
-	// TODO: frequency meter
-	// Max sample rate, peak mode disabled
-	push_sampling_config(100000000, false);
+	// Values taken straight from Wireshark dump of OWON,
+	// seems to set the oscilloscope in a pretty sane starting
+	// state!
+
+	// TODO: Use value from calibration
+	send_command<uint16_t>(CMD_SET_PHASEFINE, 0);
+	send_command<uint16_t>(CMD_SET_TRIGGER, 0);
+	send_command<uint16_t>(CMD_SET_TRG_HOLDOFF_CH1, 0x8002);
+	send_command<uint16_t>(CMD_SET_EDGE_LEVEL_CH1, 0xfd07);
+	send_command<uint8_t>(CMD_SET_CHANNEL_CH1, 0xa0);
+	// TODO: Use value from calibration
+	send_command<uint16_t>(CMD_SET_VOLT_GAIN_CH1, 0x021b);
+	// TODO: Use value from calibration
+	send_command<uint16_t>(CMD_SET_ZERO_OFF_CH1, 0x0576);
+	send_command<uint8_t>(CMD_CHL_ON, 0x03);
+	send_command<uint8_t>(CMD_SET_CHANNEL_CH1, 0xa0);
+	// TODO: Use value from calibration
+	send_command<uint16_t>(CMD_SET_VOLT_GAIN_CH2, 0x0218);
+	// TODO: Use value from calibration
+	send_command<uint16_t>(CMD_SET_ZERO_OFF_CH1, 0x057b);
+	send_command<uint16_t>(CMD_SET_DEEPMEMORY, 0x13ec);
+	send_command<uint8_t>(CMD_SET_MULTI, 0x0);
+	send_command<uint32_t>(CMD_SET_TIMEBASE, 0x00000109);
+	send_command<uint8_t>(CMD_SET_PEAKMODE, 0x0);
+	send_command<uint8_t>(CMD_SET_ROLLMODE, 0x0);
+	send_command<uint16_t>(CMD_SET_PRE_TRG, 0x09f6);
+	send_command<uint32_t>(CMD_SET_SUF_TRG, 0x000009f6);
+	// An EMPTY cmd is sent here, not needed apparently
+	// Device is ready to start acquisition
 
 }
 
@@ -416,7 +441,7 @@ bool Driver::init_findany()
 	if(!devh)
 	{
 		LogError("Unable to find or claim OWON scope\n");
-		return -1;
+		return false;
 	}
 
 	// Start operation

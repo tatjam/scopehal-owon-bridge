@@ -74,7 +74,15 @@ int main(int argc, char* argv[])
 		return -1;
 	}
 
-	driver.get_data();
+	TriggerConfig tconfig;
+	tconfig.kind = TriggerConfig::SINGLE_A;
+	tconfig.channel_config[0].condition = TriggerConfig::ChannelConfig::RISE;
+	driver.push_trigger_config(tconfig);
+	for(int i = 0; i < 1000; i++)
+	{
+        driver.get_data();
+		usleep(100000);
+	}
 
 	Socket scpiSocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);
 	Socket waveformSocket(AF_INET6, SOCK_STREAM, IPPROTO_TCP);

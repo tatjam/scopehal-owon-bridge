@@ -5,6 +5,7 @@
 #include <vector>
 
 // Reverse engineering from https://github.com/florentbr/OWON-VDS1022/tree/master
+// and some performed by myself by inspecting USB packets
 // Everything is little endian,
 // SO THE CODE WON'T WORK ON BIG ENDIAN MACHINES JUST YET!
 
@@ -116,11 +117,11 @@ protected:
 	bool write_firmware_to_fpga();
 
 
-	void push_sampling_config(int32_t srate, bool peak_detect);
-	void push_trigger_config(TriggerConfig config);
-
 
 public:
+
+	void push_sampling_config(int32_t srate, bool peak_detect);
+	void push_trigger_config(TriggerConfig config);
 
 	void get_data();
 	void decode_data(uint8_t* raw);

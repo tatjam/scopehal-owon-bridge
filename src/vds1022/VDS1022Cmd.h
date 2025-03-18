@@ -36,7 +36,7 @@
 // contains in its value the index written (and success info of course)
 #define CMD_LOAD_FPGA 0x4000
 // No idea what this does
-#define CMD_EMPTY 0b010c
+#define CMD_EMPTY 0x010c
 // Returns a CommandResponse with value:
 // 0: error
 // 1: VDS1022
@@ -64,7 +64,7 @@
 #define CMD_GET_TRIGGERED 0x01
 // No idea what this one does
 #define CMD_GET_VIDEOTRGD 0x02
-// Takes a 16-bit number which is:
+// Takes a 8-bit number which is:
 // 0: TRIGGER OUT
 // 1: PASS-FAIL (Unused)
 // 2: TRIGGER IN
@@ -83,27 +83,72 @@
 // Takes a byte which must be 0x3 to trigger
 #define CMD_FORCETRG 0x0c
 // Takes a 16-bit number which is phasefine from the flash
+// (Observed to be 0 in my machine)
 #define CMD_SET_PHASEFINE 0x18
+// Takes a 16-bit number which determines the trigger config. If setting up an alternate trigger
+// two messages must be sent
+// bit  0 = trigger from channel (0) or from EXT (1)
+// bit  15 = trigger from single channel (0) or alternate both (1)
+// ONLY WHEN SETTING UP ALTERNATE CHANNEL:
+//		bit  14: alternate channel
+//		bits 13,8: alternate channel trigger mode
+// ONLY WHEN SETTING UP MAIN CHANNEL:
+//		bit 13: channel
+//		bits 8,14:
+// EDGE MODE ONLY:
+//		bit 9: AC couping (0) (always?)
+//		bit 10,11: (only works if non-alternate) sweep mode (0: auto, 1: normal, 2: once)
+//		bit 12: 0: rise 1: fall
+// PULSE OR SLOPE MODES ONLY:
+//		bits 5, 6, 7: condition (0: Rise>, 1: Rise=, 2:Rise<, 3:Fall>, 4:Fall=, 5:Fall<
+//		bits 10,11: (only works if non-alternate) sweep mode (same as before)
+// The other bits set to 0
 #define CMD_SET_TRIGGER 0x24
 #define CMD_SET_VIDEOLINE 0x32
+// Takes a 32-bit number which indicates divider to use with respect to 100Mhz for sampling
 #define CMD_SET_TIMEBASE 0x52
+// Takes a 32-bit number which is post-trigger size in order to setup trigger point (in samples)
 #define CMD_SET_SUF_TRG 0x56
+// Takes a 16-bit number which is pre-trigger size in order to setup trigger point (in samples)
 #define CMD_SET_PRE_TRG 0x5a
+// Takes a 16-bit number which is how many samples to store
+// (Use 5100 which is the real memory size)
 #define CMD_SET_DEEPMEMORY 0x5c
 #define CMD_SET_RUNSTOP 0x61
+// If this doesn't return 0 we must wait before trying to acquire data
 #define CMD_GET_DATAFINISHED 0x7a
 #define CMD_GET_STOPPED 0xb1
+// Configure channel 1
+// bit 0:	0
+// bit 1:	0 input atten off, 1 input atten on
+// bit 2,3:	bandwidth limit (0)
+// bit 4:	0
+// bit 5,6:	coupling (0: DC, 1: AC, 2: GND)
+// bit 7:	0 channel off 1 channel on
 #define CMD_SET_CHANNEL_CH1 0x0111
+// Same as before but for channel 2
 #define CMD_SET_CHANNEL_CH2 0x0110
+// Send calibration value
 #define CMD_SET_ZERO_OFF_CH1 0x010a
+// Send calibration value
 #define CMD_SET_ZERO_OFF_CH2 0x0108
+// Send calibration value
 #define CMD_SET_VOLT_GAIN_CH1 0x0116
+// Send calibration value
 #define CMD_SET_VOLT_GAIN_CH2 0x0114
 #define CMD_SET_SLOPE_THRED_CH1 0x10
 #define CMD_SET_SLOPE_THRED_CH2 0x12
+// Takes a 16-bit number (really two 8 bit signed numbers)
+// which indicate high and low trigger level
 #define CMD_SET_EDGE_LEVEL_CH1 0x2e
+// Takes a 16-bit number (really two 8 bit numbers)
+// which indicate high and low trigger level
 #define CMD_SET_EDGE_LEVEL_CH2 0x30
+// Takes a 16-bit number which is holdoff for channel 1
+// in 10th of ns, 10 bits mantissa and base 10 exponent in rem bits
 #define CMD_SET_TRG_HOLDOFF_CH1 0x26
+// Takes a 16-bit number which is holdoff for channel 2
+// in 10th of ns, 10 bits mantissa and base 10 exponent in rem bits
 #define CMD_SET_TRG_HOLDOFF_CH2 0x2a
 
 // Only on FPGA <= V2
