@@ -255,56 +255,53 @@ void Driver::push_trigger_config(TriggerConfig config)
 }
 
 
-void Driver::get_data()
+Driver::DataReadResult Driver::get_data(AcquiredData& out_ch1, AcquiredData& out_ch2, unsigned int timeout)
 {
-	/*CommandResponse data_finished = send_command<uint8_t>(CMD_GET_DATAFINISHED, 0);
-	if(data_finished.value != 0)
-	{
-		return;
-	}
-	CommandResponse data_gettrg = send_command<uint8_t>(
-		CMD_GET_TRIGGERED, 0);
-	if(data_gettrg.value != 0)
-	{
-		return;
-	}*/
 	uint16_t channel_set = 0x0505;
 	send_command_raw<uint16_t>(CMD_GET_DATA, channel_set);
 
 	std::array<uint8_t, 5211 * 2> read_bytes{};
 	int read_bytes_num;
-	libusb_bulk_transfer(hnd, read_ep, read_bytes.data(), read_bytes.size(), &read_bytes_num, 0);
+	int ret  = libusb_bulk_transfer(hnd, read_ep, read_bytes.data(), read_bytes.size(), &read_bytes_num, timeout);
+	if(ret == LIBUSB_ERROR_TIMEOUT)
+	{
+		return DataReadResult{.kind = DataReadResult::TIMEOUT};
+	} else if(ret != 0)
+	{
+		return DataReadResult{.kind = DataReadResult::ERROR};
+	}
 
 	if(read_bytes_num == 5)
 	{
 		// Not ready
-		return;
+		return DataReadResult{.kind = DataReadResult::NO_DATA};
 	}
 
 	if(read_bytes_num < 5211)
 	{
 		// Something's wrong
-		return;
+		return DataReadResult{.kind = DataReadResult::ERROR};
 	}
 
 	printf("Decoded\n");
 
-	decode_data(read_bytes.data());
-	if(read_bytes_num == 5211 * 2)
-	{
-		decode_data(read_bytes.data() + 5211);
-	}
+	return decode_data(read_bytes.data(), read_bytes_num, out_ch1, out_ch2);
 
 }
 
-void Driver::decode_data(uint8_t* raw)
+Driver::DataReadResult Driver::decode_data(uint8_t* raw, int num_bytes, AcquiredData& out_ch1, AcquiredData& out_ch2)
 {
+	DataReadResult res{};
+	res.kind = DataReadResult::OKAY;
+
 	// First byte is channel num
 	// 4-byte uint represents time sum
 	// 4-byte uint represents period number
 	// 2-byte uint represents cursor, starting from right
 	// 100 bytes of trigger buffer
 	// 5100 bytes of ADC data
+
+	return res;
 }
 
 void Driver::load_default_settings()

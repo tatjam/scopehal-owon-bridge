@@ -86,6 +86,15 @@ struct TriggerConfig
 
 };
 
+struct AcquiredData
+{
+	uint32_t time_sum;
+	uint32_t period_num;
+	uint32_t cursor;
+	std::array<uint8_t, 100> trigger_buf;
+	std::array<uint8_t, 5100> samples;
+};
+
 class Driver
 {
 protected:
@@ -117,14 +126,31 @@ protected:
 	bool write_firmware_to_fpga();
 
 
-
 public:
 
 	void push_sampling_config(int32_t srate, bool peak_detect);
 	void push_trigger_config(TriggerConfig config);
 
-	void get_data();
-	void decode_data(uint8_t* raw);
+	struct DataReadResult
+	{
+		enum Kind
+		{
+			OKAY,
+            TIMEOUT,
+            ERROR,
+            NO_DATA,
+		};
+		Kind kind;
+		bool has_ch1;
+		bool has_ch2;
+	};
+	// timeout in ms, use 0 for no timeout. Returns:
+	// 0 if no new data was available (timed-out or error)
+	// 1 if data was written to ch1
+	// 2 if data was written to ch2
+	// 3 if data was written to both
+	DataReadResult get_data(AcquiredData& out_ch1, AcquiredData& out_ch2, unsigned int timeout);
+	DataReadResult decode_data(uint8_t* raw, int num_bytes, AcquiredData& out_ch1, AcquiredData& out_ch2);
 
 	void load_default_settings();
 

@@ -2,6 +2,9 @@
 
 #include "Driver.h"
 #include "../../lib/scpi-server-tools/BridgeSCPIServer.h"
+#include <mutex>
+#include <atomic>
+#include <thread>
 
 class OWONSCPIServer : public BridgeSCPIServer
 {
@@ -10,7 +13,16 @@ public:
 	Socket waveform_socket;
 
 	OWONSCPIServer(ZSOCKET sock, Socket&& wsock, Driver* driver);
-	virtual ~OWONSCPIServer();
+	~OWONSCPIServer() override;
+
+	std::mutex device_mtx;
+	std::thread waveform_thread;
+
+	std::atomic<bool> waveform_quit;
+
+	// Acquires waveforms from the device, so main thread can work
+	// on communication only (and SCPI commands themselves)
+	void waveform_server();
 
 protected:
 

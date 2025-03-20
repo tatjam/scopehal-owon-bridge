@@ -1,17 +1,61 @@
 #include "OWONSCPIServer.h"
 
 #include <log.h>
+#include "NetStructs.h"
 
-OWONSCPIServer::OWONSCPIServer(ZSOCKET sock, Socket&& wsock, Driver* driver)
+OWONSCPIServer::OWONSCPIServer(ZSOCKET sock, Socket&& wsock, Driver* dr)
 :	BridgeSCPIServer(sock)
 ,	waveform_socket(wsock)
-,	driver(driver)
+,	driver(dr)
 {
 	scpi_socket = sock;
+
+	waveform_quit = false;
+	waveform_thread = std::thread(&OWONSCPIServer::waveform_server, this);
 }
 
 OWONSCPIServer::~OWONSCPIServer()
 {
+	waveform_quit = true;;
+	waveform_thread.join();
+}
+
+void OWONSCPIServer::waveform_server()
+{
+	// The device is slow enough that we can just keep a single buffer
+	AcquiredData ch1, ch2;
+	while(!waveform_quit)
+	{
+		// TODO: Add readyness / trigger check
+		Driver::DataReadResult result{};
+		{
+			std::unique_lock<std::mutex>(device_mtx);
+			result = driver->get_data(ch1, ch2, 10);
+		}
+
+		if(result.kind == Driver::DataReadResult::OKAY)
+		{
+			OWONVDS1022WaveformNetStruct wfm;
+			if(result.has_ch1)
+			{
+				wfm.ch = 0;
+
+				waveform_socket.SendLooped(reinterpret_cast<uint8_t*>(&wfm), sizeof(OWONVDS1022WaveformNetStruct));
+			}
+
+			if(result.has_ch2)
+			{
+				wfm.ch = 1;
+
+				waveform_socket.SendLooped(reinterpret_cast<uint8_t*>(&wfm), sizeof(OWONVDS1022WaveformNetStruct));
+			}
+		}
+		else if(result.kind != Driver::DataReadResult::TIMEOUT)
+		{
+			// Sleep a bit to prevent continuous mutex locking
+			std::this_thread::sleep_for(std::chrono::milliseconds(1));
+		}
+	}
 }
 
 std::string OWONSCPIServer::GetMake()
@@ -163,10 +207,6 @@ bool OWONSCPIServer::OnQuery(const std::string& line, const std::string& subject
 	}
 
 	return false;
-}
-
-void OWONSCPIServer::WorkerThreadFunc(OWONSCPIServer* server)
-{
 }
 
 bool OWONSCPIServer::OnCommand(const std::string& line, const std::string& subject, const std::string& cmd,
